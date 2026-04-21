@@ -1,0 +1,71 @@
+version: '3.8'
+
+name: "gds-stack"
+
+services:
+
+  # ── 1. Microsoft SQL Server ──────────────────────────────────
+  db:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: gds-db
+    restart: unless-stopped
+    ports:
+      - "1433:1433"
+    environment:
+      MSSQL_SA_PASSWORD: "Admin42!"
+      ACCEPT_EULA: "Y"
+    healthcheck:
+      test: >
+        /opt/mssql-tools18/bin/sqlcmd
+        -S localhost -U sa -P "Admin42!"
+        -Q "SELECT 1" -b -o /dev/null -C
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    volumes:
+      - mssql-data:/var/opt/mssql
+
+  # ── 2. GDSwithREST (OPC UA GDS + REST API) ──────────────────
+  gds-rest:
+    build:
+      context: ./GDSwithREST
+      dockerfile: Dockerfile
+    container_name: gds-rest
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+      - "8081:8081"
+      - "58810:58810"
+    environment:
+      ASPNETCORE_Kestrel__Certificates__Default__Password: "457834587hgedv343"
+      ASPNETCORE_Kestrel__Certificates__Default__Path: "/OPC Foundation/HTTPSCert/aspnetapp.pfx"
+      ASPNETCORE_URLS: "https://+:8081;http://+:8080"
+      ConnectionStrings__Default: "Server=db,1433;Database=gdsdb;User Id=sa;Password=Admin42!;TrustServerCertificate=True;"
+    volumes:
+      - gds-pki-data:/OPC Foundation/GDS/PKI
+      - gds-https-cert:/OPC Foundation/HTTPSCert
+
+  # ── 3. GDSwithUI (Blazor Web UI) ────────────────────────────
+  gds-ui:
+    build:
+      context: ./GDSwithUI
+      dockerfile: Dockerfile
+    container_name: gds-ui
+    restart: unless-stopped
+    depends_on:
+      - gds-rest
+    ports:
+      - "8082:8082"
+    environment:
+      ASPNETCORE_URLS: "http://+:8082"
+      GdsApi__BaseUrl: "https://gds-rest:8081"
+      GdsApi__DisableSslValidation: "true"
+
+volumes:
+  mssql-data:
+  gds-pki-data:
+  gds-https-cert:
