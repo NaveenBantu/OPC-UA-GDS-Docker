@@ -1,0 +1,184 @@
+@page "/auto-renew"
+@using global::GdsApi
+@inject ICertificateGroupsGdsApi CertificateGroupsGdsApi
+@inject ILoginGdsApi LoginGdsApi
+@implements IDisposable
+
+<PageTitle>Auto Renew</PageTitle>
+
+<h1>Certificate Auto-Renewal</h1>
+<p>Automatically regenerate CA certificates on all groups at a set interval. For demo purposes.</p>
+
+<div class="card mb-4" style="max-width:520px">
+    <div class="card-body">
+
+        <div class="mb-3">
+            <label class="form-label fw-semibold">Username</label>
+            <input class="form-control" @bind="username" placeholder="CertificateAuthorityAdmin" disabled="@isRunning" />
+        </div>
+        <div class="mb-3">
+            <label class="form-label fw-semibold">Password</label>
+            <input type="password" class="form-control" @bind="password" placeholder="demo" disabled="@isRunning" />
+        </div>
+        <div class="mb-3">
+            <label class="form-label fw-semibold">Interval (seconds)</label>
+            <input type="number" class="form-control" @bind="intervalSeconds" min="10" max="3600" disabled="@isRunning" />
+        </div>
+
+        @if (!isRunning)
+        {
+            <button class="btn btn-success w-100" @onclick="Start">▶ Start Auto-Renewal</button>
+        }
+        else
+        {
+            <button class="btn btn-danger w-100" @onclick="Stop">⏹ Stop Auto-Renewal</button>
+        }
+    </div>
+</div>
+
+@if (!string.IsNullOrEmpty(statusMessage))
+{
+    <div class="alert @statusClass" role="alert">@statusMessage</div>
+}
+
+@if (log.Count > 0)
+{
+    <h5>Renewal Log</h5>
+    <div class="border rounded p-2" style="max-height:320px;overflow-y:auto;background:#1e1e1e;color:#d4d4d4;font-family:monospace;font-size:0.85rem">
+        @foreach (var entry in log.AsEnumerable().Reverse())
+        {
+            <div>@entry</div>
+        }
+    </div>
+    <button class="btn btn-sm btn-outline-secondary mt-2" @onclick="() => log.Clear()">Clear log</button>
+}
+
+@code {
+    private string username = "CertificateAuthorityAdmin";
+    private string password = "demo";
+    private int intervalSeconds = 600;  // default 10 minutes
+
+    private bool isRunning = false;
+    private string statusMessage = "";
+    private string statusClass = "alert-info";
+    private List<string> log = new();
+
+    private CancellationTokenSource? cts;
+    private int renewalCount = 0;
+
+    private async Task Start()
+    {
+        statusMessage = "";
+        log.Clear();
+        renewalCount = 0;
+
+        // Validate credentials first
+        try
+        {
+            var token = await LoginGdsApi.LoginAsync(new LoginApiModel
+            {
+                UserName = username,
+                Password = password
+            });
+
+            if (string.IsNullOrEmpty(token))
+            {
+                SetStatus("Login failed — no token returned.", "alert-danger");
+                return;
+            }
+        }
+        catch (Exception ex)
+        {
+            SetStatus($"Login failed: {ex.Message}", "alert-danger");
+            return;
+        }
+
+        isRunning = true;
+        SetStatus($"Running — renewing every {intervalSeconds}s", "alert-success");
+
+        cts = new CancellationTokenSource();
+        _ = RenewLoop(cts.Token);
+    }
+
+    private void Stop()
+    {
+        cts?.Cancel();
+        isRunning = false;
+        SetStatus($"Stopped after {renewalCount} renewal(s).", "alert-warning");
+    }
+
+    private async Task RenewLoop(CancellationToken token)
+    {
+        while (!token.IsCancellationRequested)
+        {
+            await RenewAll();
+
+            try { await Task.Delay(intervalSeconds * 1000, token); }
+            catch (TaskCanceledException) { break; }
+        }
+    }
+
+    private async Task RenewAll()
+    {
+        var timestamp = DateTime.Now.ToString("HH:mm:ss");
+
+        try
+        {
+            // Re-authenticate to get fresh JWT
+            var jwt = await LoginGdsApi.LoginAsync(new LoginApiModel
+            {
+                UserName = username,
+                Password = password
+            });
+
+            var groups = await CertificateGroupsGdsApi.GetCertificateGroupsAsync();
+            int succeeded = 0;
+            int failed = 0;
+
+            foreach (var group in groups)
+            {
+                try
+                {
+                    var newCert = await CertificateGroupsGdsApi.PostCertificateGroupCAAsync(
+                        (int)group.Id, jwt);
+
+                    AddLog($"[{timestamp}] ✅ Group {group.Id} → new cert: {newCert?.Subject ?? "OK"} (expires {newCert?.NotAfter?.ToString("yyyy-MM-dd HH:mm") ?? "?"})");
+                    succeeded++;
+                }
+                catch (Exception ex)
+                {
+                    AddLog($"[{timestamp}] ❌ Group {group.Id} failed: {ex.Message}");
+                    failed++;
+                }
+            }
+
+            renewalCount++;
+            SetStatus($"Running — renewal #{renewalCount} done at {timestamp} ({succeeded} OK, {failed} failed). Next in {intervalSeconds}s.", "alert-success");
+        }
+        catch (Exception ex)
+        {
+            AddLog($"[{timestamp}] ❌ Renewal #{renewalCount + 1} error: {ex.Message}");
+            SetStatus($"Error during renewal: {ex.Message}", "alert-danger");
+        }
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void AddLog(string message)
+    {
+        log.Add(message);
+        if (log.Count > 200) log.RemoveAt(0);
+    }
+
+    private void SetStatus(string message, string cssClass)
+    {
+        statusMessage = message;
+        statusClass = cssClass;
+    }
+
+    public void Dispose()
+    {
+        cts?.Cancel();
+        cts?.Dispose();
+    }
+}
