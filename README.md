@@ -23,19 +23,16 @@ gds-docker/
 ## Step 1 – Clone the source repos
 
 ```bash
-# from inside gds-docker/
+# The GDSwithREST and GDSwithUI are imported from the original Git Repos
 git clone https://github.com/romanett/GDSwithREST.git  GDSwithREST
 git clone https://github.com/romanett/GDSwithUI.git     GDSwithUI
-
-# Copy the Dockerfiles we generated into each repo folder
-# (they are already placed correctly if you kept the layout above)
 ```
 
 ---
 
 ## Step 2 – Change the SQL password (important!)
 
-In `docker-compose.yml`, replace **all three occurrences** of `Str0ng!GDS_Passw0rd`
+In `docker-compose.yml`, replace **all three occurrences** of `Admin42!`
 with your own strong password. The same string must appear in:
 
 - `db` → `MSSQL_SA_PASSWORD`
@@ -77,34 +74,42 @@ allow ~5 minutes on a fresh machine.
 
 The sample GDS servers only implement the username/password authentication. The following combinations can be used to connect to the servers:
 
-DiscoveryAdmin
-PW: demo
+1. DiscoveryAdmin  
+   PW: demo  
+
 This Role grants rights to register, update and unregister any OPC UA Application.
 see spec (Roles and Privileges)[https://reference.opcfoundation.org/GDS/v105/docs/6.2]
 
-CertificateAuthorityAdmin
-PW: demo
+2. CertificateAuthorityAdmin  
+   PW: demo  
+
 This Role grants rights to request or revoke any Certificate, update any TrustList or assign CertificateGroups to OPC UA Applications.
 see spec (Roles and Privileges Part 2)[https://reference.opcfoundation.org/GDS/v105/docs/7.2]
 
-System Administrator:
-Username: sysadmin, PW: demo
+3. System Administrator:  
+   Username: sysadmin   
+   PW: demo  
+
 This user is defined for server push management and has the ability to access the server configuration nodes of the GDS server to update the server certificate and the trust lists. Server push configuration management is not a requirement for a GDS server and only supported here to demonstrate the functionality.
 Roles: CertificateAuthorityAdmin, DiscoveryAdmin, SecurityAdmin, ConfigureAdmin Deprecated
 
-GDS Administrator:
-Username: appadmin, PW: demo
+4. GDS Administrator:  
+   Username: appadmin  
+   PW: demo  
+
 This user has the ability to register and unregister applications and to issue new certificates. It should be used by the GDS Client application to connect.
 
-GDS User:
-Username: appuser, PW: demo
+5. GDS User:  
+   Username: appuser  
+   PW: demo  
+
 This user has only a limited ability to search for applications.
 
 Change these in `GDSwithREST/GDSwithREST/appsettings.json` before exposing to a network.
 
 ---
 
-## Connecting a PCD3.M6893 / Niagara client (Pull model)
+## Connecting a UA Client / Niagara client (Pull model)
 
 1. In your OPC UA client config, set the GDS endpoint to:
    ```
