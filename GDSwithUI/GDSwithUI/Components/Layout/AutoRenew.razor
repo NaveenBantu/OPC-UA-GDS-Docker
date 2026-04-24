@@ -1,7 +1,10 @@
 @page "/auto-renew"
 @using global::GdsApi
+@using System.Net.Http.Headers
 @inject ICertificateGroupsGdsApi CertificateGroupsGdsApi
 @inject ILoginGdsApi LoginGdsApi
+@inject IHttpClientFactory HttpClientFactory
+@inject Microsoft.Extensions.Configuration.IConfiguration Configuration
 @implements IDisposable
 
 <PageTitle>Auto Renew</PageTitle>
@@ -11,7 +14,6 @@
 
 <div class="card mb-4" style="max-width:520px">
     <div class="card-body">
-
         <div class="mb-3">
             <label class="form-label fw-semibold">Username</label>
             <input class="form-control" @bind="username" placeholder="CertificateAuthorityAdmin" disabled="@isRunning" />
@@ -27,11 +29,11 @@
 
         @if (!isRunning)
         {
-            <button class="btn btn-success w-100" @onclick="Start">▶ Start Auto-Renewal</button>
+            <button class="btn btn-success w-100" @onclick="Start">&#9654; Start Auto-Renewal</button>
         }
         else
         {
-            <button class="btn btn-danger w-100" @onclick="Stop">⏹ Stop Auto-Renewal</button>
+            <button class="btn btn-danger w-100" @onclick="Stop">&#9646;&#9646; Stop Auto-Renewal</button>
         }
     </div>
 </div>
@@ -56,7 +58,7 @@
 @code {
     private string username = "CertificateAuthorityAdmin";
     private string password = "demo";
-    private int intervalSeconds = 600;  // default 10 minutes
+    private int intervalSeconds = 600;
 
     private bool isRunning = false;
     private string statusMessage = "";
@@ -72,7 +74,6 @@
         log.Clear();
         renewalCount = 0;
 
-        // Validate credentials first
         try
         {
             var token = await LoginGdsApi.LoginAsync(new LoginApiModel
@@ -95,7 +96,6 @@
 
         isRunning = true;
         SetStatus($"Running — renewing every {intervalSeconds}s", "alert-success");
-
         cts = new CancellationTokenSource();
         _ = RenewLoop(cts.Token);
     }
@@ -112,7 +112,6 @@
         while (!token.IsCancellationRequested)
         {
             await RenewAll();
-
             try { await Task.Delay(intervalSeconds * 1000, token); }
             catch (TaskCanceledException) { break; }
         }
@@ -124,14 +123,26 @@
 
         try
         {
-            // Re-authenticate to get fresh JWT
+            // Get fresh JWT
             var jwt = await LoginGdsApi.LoginAsync(new LoginApiModel
             {
                 UserName = username,
                 Password = password
             });
 
-            var groups = await CertificateGroupsGdsApi.GetCertificateGroupsAsync();
+            // Create a one-off HttpClient with the Bearer token set,
+            // then wrap it in a CertificateGroupsGdsApi instance.
+            // This bypasses the DI-injected client which has no auth header.
+            var httpClient = HttpClientFactory.CreateClient("GdsApi");
+            httpClient.DefaultRequestHeaders.Authorization =
+                new AuthenticationHeaderValue("Bearer", jwt);
+
+            var authedApi = new CertificateGroupsGdsApi(httpClient)
+            {
+                BaseUrl = Configuration["GdsApi:BaseUrl"] ?? "https://gds-rest:8081"
+            };
+
+            var groups = await authedApi.GetCertificateGroupsAsync();
             int succeeded = 0;
             int failed = 0;
 
@@ -139,26 +150,25 @@
             {
                 try
                 {
-                    var newCert = await CertificateGroupsGdsApi.PostCertificateGroupCAAsync(
-                        (int)group.Id, jwt);
-
-                    AddLog($"[{timestamp}] ✅ Group {group.Id} → new cert: {newCert?.Subject ?? "OK"} (expires {newCert?.NotAfter?.ToString("yyyy-MM-dd HH:mm") ?? "?"})");
+                    var newCert = await authedApi.PostCertificateGroupCAAsync((int)group.Id);
+                    var expiry = newCert?.NotAfter?.ToString("yyyy-MM-dd HH:mm") ?? "?";
+                    AddLog($"[{timestamp}] OK  Group {group.Id} | {newCert?.Subject ?? "renewed"} | expires {expiry}");
                     succeeded++;
                 }
                 catch (Exception ex)
                 {
-                    AddLog($"[{timestamp}] ❌ Group {group.Id} failed: {ex.Message}");
+                    AddLog($"[{timestamp}] ERR Group {group.Id} | {ex.Message}");
                     failed++;
                 }
             }
 
             renewalCount++;
-            SetStatus($"Running — renewal #{renewalCount} done at {timestamp} ({succeeded} OK, {failed} failed). Next in {intervalSeconds}s.", "alert-success");
+            SetStatus($"Running — renewal #{renewalCount} at {timestamp} ({succeeded} OK, {failed} failed). Next in {intervalSeconds}s.", "alert-success");
         }
         catch (Exception ex)
         {
-            AddLog($"[{timestamp}] ❌ Renewal #{renewalCount + 1} error: {ex.Message}");
-            SetStatus($"Error during renewal: {ex.Message}", "alert-danger");
+            AddLog($"[{timestamp}] ERR renewal #{renewalCount + 1}: {ex.Message}");
+            SetStatus($"Error: {ex.Message}", "alert-danger");
         }
 
         await InvokeAsync(StateHasChanged);
