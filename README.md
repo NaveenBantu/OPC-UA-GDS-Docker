@@ -71,6 +71,8 @@ allow ~5 minutes on a fresh machine.
 | CA Admin | `CertificateAuthorityAdmin` | `demo` |
 | Discovery Admin | `DiscoveryAdmin` | `demo` |
 | Sys Admin (push) | `sysadmin` | `demo` |
+| GDS Admin (push) | `appadmin` | `demo` |
+| GDS User (push) | `appuser` | `demo` |
 
 The sample GDS servers only implement the username/password authentication. The following combinations can be used to connect to the servers:
 
