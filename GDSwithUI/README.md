@@ -1,6 +1,8 @@
 # GDSwithUI
 A Blazor Based Web UI for GDSwithREST
 
+Added Auto Renew Page to auto renew the certifcates in a interval
+
 This Project builds on the WebAPI GDSwithREST:
 
 https://github.com/romanett/GDSwithREST
