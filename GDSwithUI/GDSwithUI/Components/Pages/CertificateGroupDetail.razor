@@ -1,0 +1,83 @@
+﻿@page "/certificate-group/{Id}"
+@using global::GdsApi
+@inject ICertificateGroupsGdsApi CertificateGroupsGdsApi
+
+<PageTitle>CertificateGroup Details</PageTitle>
+
+<h1>CertificateGroup Details</h1>
+
+@if(certificateGroup is null)
+{
+    <div class="spinner-border" role="status">
+        <span class="visually-hidden">Loading...</span>
+    </div>
+}
+else
+{
+    
+
+    @if (NoCertificateGroupFound)
+    {
+        <div class="alert alert-danger" role="alert">
+            No CertificateGroup found matching the provided Identifier!
+        </div>
+    }
+    else
+    {
+        <p>Details of the CertificateGroup @certificateGroup.Id</p>
+        <div class="d-flex flex-row">
+
+        <div class="card m-2" style="width: 18rem;">
+            <div class="card-header">
+                Certificate Group
+            </div>
+            <div class="card-body">
+                    <p class="card-text"><strong>Name:</strong> @certificateGroup.Id</p>
+                    <p class="card-text"><strong>Update required:</strong> @certificateGroup.UpdateRequired</p>
+            </div>
+        </div>
+        <CertificateCard Certificate="@certificateGroup.Ceritificate"></CertificateCard>
+        
+        </div>
+    }
+}
+@code {
+    [Parameter]
+    public string? Id { get; set; }
+
+    public bool NoCertificateGroupFound { get; set; } = false;
+
+    public CertificateGroupType certGroupType { get; set; }
+
+    private CertificateGroupApiModel? certificateGroup;
+
+    protected override async Task OnInitializedAsync()
+    {
+        CertificateGroupType parsedId;
+        CertificateGroupType.TryParse(Id, out parsedId);
+        if(parsedId != 0)
+        {
+            certGroupType = parsedId;
+            
+            try
+            {
+                var CertificateGroups = await CertificateGroupsGdsApi.GetCertificateGroupsAsync();
+                var resolvedCertificateGroup = CertificateGroups.Where(cg => cg.Id == certGroupType).FirstOrDefault();
+                if (resolvedCertificateGroup is not null)
+                    certificateGroup = resolvedCertificateGroup;
+                else
+                    NoCertificateGroupFound = true;
+            }
+            catch (ApiException e)
+            {
+                if (e.StatusCode == 404)
+                    return;
+                throw;
+            }
+        }
+        else
+        {
+            NoCertificateGroupFound = true;
+        }
+    }
+}

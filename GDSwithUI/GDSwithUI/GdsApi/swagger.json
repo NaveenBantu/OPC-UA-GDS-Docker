@@ -1,0 +1,600 @@
+{
+  "x-generator": "NSwag v13.20.0.0 (NJsonSchema v10.9.0.0 (Newtonsoft.Json v13.0.0.0))",
+  "openapi": "3.0.0",
+  "info": {
+    "title": "GDSwithREST API",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "https://gds-rest:8081"
+    }
+  ],
+  "paths": {
+    "/Applications": {
+      "get": {
+        "tags": [
+          "Applications"
+        ],
+        "summary": "Returns all registered applications",
+        "operationId": "Applications_GetApplicationsAll",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ApplicationApiModel"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/Applications/{id}": {
+      "get": {
+        "tags": [
+          "Applications"
+        ],
+        "summary": "Returns the specified Application",
+        "operationId": "Applications_GetApplications",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplicationApiModel"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/Applications/register": {
+      "post": {
+        "tags": [
+          "Applications"
+        ],
+        "summary": "Register a new Application at the GDS",
+        "operationId": "Applications_RegisterApplication",
+        "requestBody": {
+          "x-name": "applicationRaw",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApplicationApiModel"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplicationApiModel"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": ""
+          }
+        }
+      }
+    },
+    "/Applications/{id}/unregister": {
+      "delete": {
+        "tags": [
+          "Applications"
+        ],
+        "summary": "unregister an exisiting Application from the OPC UA GDS",
+        "operationId": "Applications_DeleteApplications",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/CertificateGroups": {
+      "get": {
+        "tags": [
+          "CertificateGroups"
+        ],
+        "summary": "Returns all Certificate Groups of the GDS",
+        "operationId": "CertificateGroups_GetCertificateGroups",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CertificateGroupApiModel"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/CertificateGroups/{id}/ca": {
+      "get": {
+        "tags": [
+          "CertificateGroups"
+        ],
+        "summary": "Returns the CA Certificate of the specified Certificate Group",
+        "operationId": "CertificateGroups_GetCertificateGroupCA",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "x-position": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/X509CertificateApiModel"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "CertificateGroups"
+        ],
+        "summary": "Regenerate the CA Certificate of the specified Certificate Group",
+        "operationId": "CertificateGroups_PostCertificateGroupCA",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "x-position": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/X509CertificateApiModel"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/CertificateGroups/{id}/trustlist": {
+      "get": {
+        "tags": [
+          "CertificateGroups"
+        ],
+        "summary": "Returns the TrustList of the specified certificate Group",
+        "operationId": "CertificateGroups_GetCertificateGroupTrustList",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "x-position": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/X509CertificateApiModel"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/CertificateGroups/{id}/cert/revoke": {
+      "delete": {
+        "tags": [
+          "CertificateGroups"
+        ],
+        "summary": "revoke the specified Certifice in the specified Certificate Group",
+        "operationId": "CertificateGroups_RevokeCertificateGroupCert",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "x-position": 1
+          }
+        ],
+        "requestBody": {
+          "x-name": "certPemRaw",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          },
+          "required": true,
+          "x-position": 2
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/Login": {
+      "post": {
+        "tags": [
+          "Login"
+        ],
+        "operationId": "Login_Login",
+        "requestBody": {
+          "x-name": "login",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginApiModel"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ApplicationApiModel": {
+        "type": "object",
+        "description": "A GDS registered Application",
+        "additionalProperties": false,
+        "properties": {
+          "applicationId": {
+            "type": "string",
+            "description": "The Guid identifying the Application",
+            "format": "guid"
+          },
+          "applicationUri": {
+            "type": "string",
+            "description": "The Uri of the Application"
+          },
+          "applicationName": {
+            "type": "string",
+            "description": "The name of the Application"
+          },
+          "applicationType": {
+            "$ref": "#/components/schemas/ApplicationType"
+          },
+          "productUri": {
+            "type": "string"
+          },
+          "certificate": {
+            "description": "The gds signed certificate of the Application",
+            "nullable": true,
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/X509CertificateApiModel"
+              }
+            ]
+          }
+        }
+      },
+      "ApplicationType": {
+        "type": "integer",
+        "description": "Type of the registered OPC UA Application",
+        "x-enumNames": [
+          "Server",
+          "Client",
+          "ClientAndServer",
+          "DiscoveryServer"
+        ],
+        "enum": [
+          0,
+          1,
+          2,
+          3
+        ]
+      },
+      "X509CertificateApiModel": {
+        "type": "object",
+        "description": "A X509 Certificate",
+        "additionalProperties": false,
+        "properties": {
+          "subject": {
+            "type": "string"
+          },
+          "thumbprint": {
+            "type": "string"
+          },
+          "serialNumber": {
+            "type": "string"
+          },
+          "notBefore": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "notAfter": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "certificate": {
+            "type": "string"
+          },
+          "issuer": {
+            "type": "string"
+          }
+        }
+      },
+      "ProblemDetails": {
+        "type": "object",
+        "additionalProperties": {
+          "nullable": true
+        },
+        "properties": {
+          "type": {
+            "type": "string",
+            "nullable": true
+          },
+          "title": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "detail": {
+            "type": "string",
+            "nullable": true
+          },
+          "instance": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "CertificateGroupApiModel": {
+        "type": "object",
+        "description": "Certificate Group of the GDS",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/CertificateGroupType"
+          },
+          "updateRequired": {
+            "type": "boolean"
+          },
+          "ceritificate": {
+            "nullable": true,
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/X509CertificateApiModel"
+              }
+            ]
+          }
+        }
+      },
+      "CertificateGroupType": {
+        "type": "integer",
+        "description": "Type of the Certificate Group",
+        "x-enumNames": [
+          "DefaultApplicationGroup",
+          "DefaultHttpsGroup",
+          "DefaultUserTokenGroup"
+        ],
+        "enum": [
+          615,
+          649,
+          683
+        ]
+      },
+      "LoginApiModel": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "userName": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "Bearer": {
+        "type": "http",
+        "description": "Provide your JWT Token",
+        "name": "Authorization",
+        "in": "header",
+        "scheme": "Bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  }
+}

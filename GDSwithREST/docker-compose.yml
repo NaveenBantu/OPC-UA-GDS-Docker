@@ -1,0 +1,37 @@
+version: '3.4'
+name: "gdswithrest"
+services:
+  api:
+    image: "ghcr.io/romanett/gdswithrest:2023-12-22"
+    ports:
+        - "8080:8080"
+        - "8081:8081"
+        - "58810:58810"
+    depends_on:
+        db:
+          condition: service_healthy
+    volumes:
+        - gds-data:/OPC Foundation
+    environment:
+      - ASPNETCORE_Kestrel__Certificates__Default__Password=457834587hgedv343
+      - ASPNETCORE_Kestrel__Certificates__Default__Path=/OPC Foundation/HTTPSCert/aspnetapp.pfx
+      - ASPNETCORE_URLS=https://+:8081;http://+:8080
+        
+  db:
+    image: "mcr.microsoft.com/mssql/server:2022-latest"
+    ports:
+        - "1433:1433"
+    environment:
+        MSSQL_SA_PASSWORD: "jeh7he89u534758Ghe54"
+        ACCEPT_EULA: "Y"
+    healthcheck:
+      test: /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P "jeh7he89u534758Ghe54" -Q "SELECT 1" -b -o /dev/null
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    volumes:
+      - mssql:/var/opt/mssql
+volumes:
+    gds-data:
+    mssql:

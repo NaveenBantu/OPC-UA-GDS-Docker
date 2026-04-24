@@ -1,0 +1,55 @@
+﻿@page "/certificate-groups"
+@using global::GdsApi
+@inject ICertificateGroupsGdsApi CertificateGroupsGdsApi
+
+<PageTitle>Certificate Groups</PageTitle>
+
+<h1>Certificate Groups</h1>
+
+<p>All Certificate Groups created on the GDS.</p>
+
+@if (certificteGroups.Count == 0)
+{
+    <p><em>No certificateGroups created on the GDS</em></p>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Update Required</th>
+                <th>Certificate</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var certificteGroup in certificteGroups)
+            {
+                <tr>
+                    <td><a href="/certificate-group/@certificteGroup.Id">@certificteGroup.Id</a></td>
+                    <td>@certificteGroup.UpdateRequired</td>
+                    <td>@certificteGroup.Ceritificate.Subject</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<CertificateGroupApiModel> certificteGroups = new List<CertificateGroupApiModel>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            certificteGroups = new List<CertificateGroupApiModel>(
+                await CertificateGroupsGdsApi.GetCertificateGroupsAsync());
+        }
+        catch (ApiException e)
+        {
+            if (e.StatusCode == 404)
+                return;
+            throw;
+        }
+    }
+}

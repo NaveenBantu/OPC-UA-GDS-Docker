@@ -1,0 +1,56 @@
+﻿@page "/application/{Id:guid}"
+
+@using global::GdsApi
+@inject IApplicationsGdsApi ApplicationsGdsApi
+
+<PageTitle>Application Details</PageTitle>
+
+<h1>Application Details</h1>
+
+@if (application is null)
+{
+    <div class="spinner-border" role="status">
+        <span class="visually-hidden">Loading...</span>
+    </div>
+}
+else
+{
+    <p>Details of the registered Application @application.ApplicationName</p>
+     
+    <div class="d-flex flex-row">
+    <div class="card m-2" style="width: 18rem;">
+        <div class="card-header">
+            Application
+        </div>
+        <div class="card-body">
+                <p class="card-text"><strong>Name:</strong> @application.ApplicationName</p>
+                <p class="card-text"><strong>Id:</strong> @application.ApplicationId</p>
+                <p class="card-text"><strong>Type:</strong> @application.ApplicationType</p>
+                <p class="card-text"><strong>URI:</strong> @application.ApplicationUri</p>
+                <p class="card-text"><strong>Product URI:</strong> @application.ProductUri</p>
+        </div>
+    </div>
+    <CertificateCard Certificate="@application.Certificate"></CertificateCard>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public Guid Id { get; set; }
+
+    private ApplicationApiModel? application;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            application = await ApplicationsGdsApi.GetApplicationsAsync(Id);
+        }
+        catch (ApiException e)
+        {
+            if (e.StatusCode == 404)
+                return;
+            throw;
+        }
+    }
+}
