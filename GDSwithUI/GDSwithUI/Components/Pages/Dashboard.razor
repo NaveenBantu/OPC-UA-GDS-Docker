@@ -2,7 +2,9 @@
 @page "/dashboard"
 @using global::GdsApi
 @using System.Net.Http.Headers
+@using System.Net.Sockets
 @inject IApplicationsGdsApi ApplicationsGdsApi
+@inject IApplicationsGdsApi ApplicationsGdsApiAuth
 @inject ICertificateGroupsGdsApi CertificateGroupsGdsApi
 @inject ILoginGdsApi LoginGdsApi
 @inject IHttpClientFactory HttpClientFactory
@@ -13,113 +15,167 @@
 
 <h1>Dashboard</h1>
 
-<div class="row g-3 mb-4">
-
-    @* Applications card *@
-    <div class="col-12">
-        <div class="card">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <span><strong>Registered Applications</strong></span>
-                <button class="btn btn-sm btn-outline-secondary" @onclick="LoadApplications">&#8635; Refresh</button>
+@* ── Applications ──────────────────────────────────────────── *@
+<div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span><strong>Registered Applications</strong></span>
+        <div class="d-flex gap-2 align-items-center">
+            @if (!string.IsNullOrEmpty(unregisterMessage))
+            {
+                <span class="badge @unregisterBadgeClass">@unregisterMessage</span>
+            }
+            <button class="btn btn-sm btn-outline-secondary" @onclick="LoadApplications" disabled="@appLoading">
+                &#8635; Refresh
+            </button>
+        </div>
+    </div>
+    <div class="card-body p-0">
+        @if (appLoading)
+        {
+            <p class="p-3"><em>Loading...</em></p>
+        }
+        else if (applications.Count == 0)
+        {
+            <p class="p-3"><em>No applications registered yet.</em></p>
+        }
+        else
+        {
+            <div style="overflow-x:auto">
+                <table class="table table-sm table-hover mb-0">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>Status</th>
+                            <th>Application Name</th>
+                            <th>Type</th>
+                            <th>Application URI</th>
+                            <th>Cert Expires</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var app in applications)
+                        {
+                            var status = GetStatus(app.ApplicationId.ToString());
+                            <tr>
+                                <td>
+                                    <span title="@status.Tooltip">@status.Icon</span>
+                                </td>
+                                <td>@app.ApplicationName</td>
+                                <td><small>@app.ApplicationType</small></td>
+                                <td><small>@app.ApplicationUri</small></td>
+                                <td>
+                                    @if (app.Certificate?.NotAfter != null)
+                                    {
+                                        var expiry = app.Certificate.NotAfter.Value;
+                                        var soon = expiry < DateTime.UtcNow.AddDays(7);
+                                        <span class="@(soon ? "text-warning fw-bold" : "")">
+                                            @expiry.ToString("yyyy-MM-dd HH:mm")
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">—</span>
+                                    }
+                                </td>
+                                <td>
+                                    @if (confirmUnregisterId == app.ApplicationId.ToString())
+                                    {
+                                        <span class="me-1 text-danger fw-semibold" style="font-size:0.8rem">Remove?</span>
+                                        <button class="btn btn-danger btn-sm me-1"
+                                                @onclick="() => ConfirmUnregister(app.ApplicationId.ToString())">
+                                            Yes
+                                        </button>
+                                        <button class="btn btn-outline-secondary btn-sm"
+                                                @onclick="CancelUnregister">
+                                            No
+                                        </button>
+                                    }
+                                    else
+                                    {
+                                        <button class="btn btn-outline-danger btn-sm"
+                                                @onclick="() => AskUnregister(app.ApplicationId.ToString())"
+                                                title="Unregister this application from the GDS">
+                                            &#128465; Unregister
+                                        </button>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
             </div>
-            <div class="card-body p-0">
-                @if (appLoading)
+            <div class="px-3 py-2 text-muted" style="font-size:0.78rem">
+                Status checks TCP reachability of the application URI host:port from the GDS server.
+                The GDS has no built-in online/offline state — this is a best-effort probe.
+            </div>
+        }
+    </div>
+</div>
+
+@* ── Auto-Renewal ──────────────────────────────────────────── *@
+<div class="card mb-4">
+    <div class="card-header"><strong>Certificate Auto-Renewal</strong></div>
+    <div class="card-body">
+        <div class="row g-2 align-items-end mb-3">
+            <div class="col-sm-3">
+                <label class="form-label fw-semibold mb-1">Username</label>
+                <input class="form-control form-control-sm" @bind="username" disabled="@isRunning" />
+            </div>
+            <div class="col-sm-3">
+                <label class="form-label fw-semibold mb-1">Password</label>
+                <input type="password" class="form-control form-control-sm" @bind="password" disabled="@isRunning" />
+            </div>
+            <div class="col-sm-2">
+                <label class="form-label fw-semibold mb-1">Interval (s)</label>
+                <input type="number" class="form-control form-control-sm" @bind="intervalSeconds"
+                       min="10" max="3600" disabled="@isRunning" />
+            </div>
+            <div class="col-sm-4">
+                @if (!isRunning)
                 {
-                    <p class="p-3"><em>Loading...</em></p>
-                }
-                else if (applications.Count == 0)
-                {
-                    <p class="p-3"><em>No applications registered yet.</em></p>
+                    <button class="btn btn-success btn-sm w-100" @onclick="Start">
+                        &#9654; Start Auto-Renewal
+                    </button>
                 }
                 else
                 {
-                    <div style="overflow-x:auto">
-                        <table class="table table-sm table-hover mb-0">
-                            <thead class="table-dark">
-                                <tr>
-                                    <th>Application Name</th>
-                                    <th>Id</th>
-                                    <th>Type</th>
-                                    <th>URI</th>
-                                    <th>Product URI</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach (var app in applications)
-                                {
-                                    <tr>
-                                        <td><a href="/application/@app.ApplicationId">@app.ApplicationName</a></td>
-                                        <td><small>@app.ApplicationId</small></td>
-                                        <td>@app.ApplicationType</td>
-                                        <td><small>@app.ApplicationUri</small></td>
-                                        <td><small>@app.ProductUri</small></td>
-                                    </tr>
-                                }
-                            </tbody>
-                        </table>
-                    </div>
+                    <button class="btn btn-danger btn-sm w-100" @onclick="Stop">
+                        &#9646;&#9646; Stop Auto-Renewal
+                    </button>
                 }
             </div>
         </div>
-    </div>
 
-    @* Auto-Renewal card *@
-    <div class="col-12">
-        <div class="card">
-            <div class="card-header"><strong>Certificate Auto-Renewal</strong></div>
-            <div class="card-body">
+        @if (!string.IsNullOrEmpty(renewalStatusMessage))
+        {
+            <div class="alert @renewalStatusClass py-2 mb-2" role="alert">@renewalStatusMessage</div>
+        }
 
-                <div class="row g-2 align-items-end mb-3">
-                    <div class="col-sm-3">
-                        <label class="form-label fw-semibold mb-1">Username</label>
-                        <input class="form-control form-control-sm" @bind="username" disabled="@isRunning" />
-                    </div>
-                    <div class="col-sm-3">
-                        <label class="form-label fw-semibold mb-1">Password</label>
-                        <input type="password" class="form-control form-control-sm" @bind="password" disabled="@isRunning" />
-                    </div>
-                    <div class="col-sm-2">
-                        <label class="form-label fw-semibold mb-1">Interval (s)</label>
-                        <input type="number" class="form-control form-control-sm" @bind="intervalSeconds" min="10" max="3600" disabled="@isRunning" />
-                    </div>
-                    <div class="col-sm-4">
-                        @if (!isRunning)
-                        {
-                            <button class="btn btn-success btn-sm w-100" @onclick="Start">&#9654; Start Auto-Renewal</button>
-                        }
-                        else
-                        {
-                            <button class="btn btn-danger btn-sm w-100" @onclick="Stop">&#9646;&#9646; Stop Auto-Renewal</button>
-                        }
-                    </div>
-                </div>
-
-                @if (!string.IsNullOrEmpty(statusMessage))
+        @if (log.Count > 0)
+        {
+            <div class="border rounded p-2"
+                 style="max-height:220px;overflow-y:auto;background:#1e1e1e;color:#d4d4d4;font-family:monospace;font-size:0.82rem">
+                @foreach (var entry in log.AsEnumerable().Reverse())
                 {
-                    <div class="alert @statusClass py-2 mb-2" role="alert">@statusMessage</div>
-                }
-
-                @if (log.Count > 0)
-                {
-                    <div class="border rounded p-2" style="max-height:220px;overflow-y:auto;background:#1e1e1e;color:#d4d4d4;font-family:monospace;font-size:0.82rem">
-                        @foreach (var entry in log.AsEnumerable().Reverse())
-                        {
-                            <div>@entry</div>
-                        }
-                    </div>
-                    <button class="btn btn-sm btn-outline-secondary mt-2" @onclick="() => log.Clear()">Clear log</button>
+                    <div>@entry</div>
                 }
             </div>
-        </div>
+            <button class="btn btn-sm btn-outline-secondary mt-2" @onclick="() => log.Clear()">
+                Clear log
+            </button>
+        }
     </div>
-
 </div>
 
 @code {
 
-    // ── Applications ─────────────────────────────────────────
+    // ── Application list + status ─────────────────────────────
     private List<ApplicationApiModel> applications = new();
     private bool appLoading = true;
+    private Dictionary<string, (string Icon, string Tooltip)> statusCache = new();
+    private string confirmUnregisterId = "";
+    private string unregisterMessage = "";
+    private string unregisterBadgeClass = "bg-success";
 
     protected override async Task OnInitializedAsync()
     {
@@ -129,57 +185,136 @@
     private async Task LoadApplications()
     {
         appLoading = true;
+        statusCache.Clear();
         try
         {
             applications = new List<ApplicationApiModel>(
                 await ApplicationsGdsApi.GetApplicationsAllAsync());
         }
-        catch (ApiException e)
-        {
-            if (e.StatusCode != 404) throw;
-        }
+        catch (ApiException e) { if (e.StatusCode != 404) throw; }
         finally { appLoading = false; }
+
+        // Probe reachability for each app in background
+        _ = ProbeAllAsync();
     }
 
-    // ── Auto-Renewal ─────────────────────────────────────────
+    private async Task ProbeAllAsync()
+    {
+        var tasks = applications.Select(app => ProbeAsync(app)).ToList();
+        await Task.WhenAll(tasks);
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task ProbeAsync(ApplicationApiModel app)
+    {
+        var id = app.ApplicationId.ToString();
+        var uri = app.ApplicationUri ?? "";
+
+        // Parse host:port from opc.tcp://host:port/path
+        try
+        {
+            if (uri.StartsWith("opc.tcp://", StringComparison.OrdinalIgnoreCase))
+            {
+                var without = uri.Substring("opc.tcp://".Length);
+                var hostPart = without.Split('/')[0];
+                var parts = hostPart.Split(':');
+                var host = parts[0];
+                var port = parts.Length > 1 ? int.Parse(parts[1]) : 4840;
+
+                using var tcp = new TcpClient();
+                var connectTask = tcp.ConnectAsync(host, port);
+                var timeoutTask = Task.Delay(2000);
+                var winner = await Task.WhenAny(connectTask, timeoutTask);
+
+                if (winner == connectTask && tcp.Connected)
+                    statusCache[id] = ("🟢", $"Reachable — TCP {host}:{port} responded");
+                else
+                    statusCache[id] = ("🔴", $"Unreachable — TCP {host}:{port} timed out");
+            }
+            else
+            {
+                statusCache[id] = ("⚪", "Cannot probe — URI is not opc.tcp://");
+            }
+        }
+        catch (Exception ex)
+        {
+            statusCache[id] = ("🔴", $"Probe failed: {ex.Message}");
+        }
+    }
+
+    private (string Icon, string Tooltip) GetStatus(string id)
+    {
+        return statusCache.TryGetValue(id, out var s) ? s : ("⏳", "Probing...");
+    }
+
+    // ── Unregister ────────────────────────────────────────────
+    private void AskUnregister(string id)
+    {
+        confirmUnregisterId = id;
+        unregisterMessage = "";
+    }
+
+    private void CancelUnregister() => confirmUnregisterId = "";
+
+    private async Task ConfirmUnregister(string id)
+    {
+        confirmUnregisterId = "";
+        try
+        {
+            var jwt = await LoginGdsApi.LoginAsync(new LoginApiModel
+            {
+                UserName = username,
+                Password = password
+            });
+
+            var httpClient = HttpClientFactory.CreateClient("GdsApi");
+            httpClient.DefaultRequestHeaders.Authorization =
+                new AuthenticationHeaderValue("Bearer", jwt);
+            var authedApi = new ApplicationsGdsApi(httpClient)
+            {
+                BaseUrl = Configuration["GdsApi:BaseUrl"] ?? "https://gds-rest:8081"
+            };
+
+            await authedApi.DeleteApplicationsAsync(Guid.Parse(id));
+            unregisterMessage = "Application unregistered.";
+            unregisterBadgeClass = "bg-success";
+            await LoadApplications();
+        }
+        catch (Exception ex)
+        {
+            unregisterMessage = $"Error: {ex.Message}";
+            unregisterBadgeClass = "bg-danger";
+        }
+    }
+
+    // ── Auto-Renewal ──────────────────────────────────────────
     private string username = "CertificateAuthorityAdmin";
     private string password = "demo";
     private int intervalSeconds = 600;
-
     private bool isRunning = false;
-    private string statusMessage = "";
-    private string statusClass = "alert-info";
+    private string renewalStatusMessage = "";
+    private string renewalStatusClass = "alert-info";
     private List<string> log = new();
     private CancellationTokenSource? cts;
     private int renewalCount = 0;
 
     private async Task Start()
     {
-        statusMessage = "";
+        renewalStatusMessage = "";
         log.Clear();
         renewalCount = 0;
-
         try
         {
             var token = await LoginGdsApi.LoginAsync(new LoginApiModel
-            {
-                UserName = username,
-                Password = password
-            });
+            { UserName = username, Password = password });
             if (string.IsNullOrEmpty(token))
-            {
-                SetStatus("Login failed — no token returned.", "alert-danger");
-                return;
-            }
+            { SetRenewalStatus("Login failed — no token returned.", "alert-danger"); return; }
         }
         catch (Exception ex)
-        {
-            SetStatus($"Login failed: {ex.Message}", "alert-danger");
-            return;
-        }
+        { SetRenewalStatus($"Login failed: {ex.Message}", "alert-danger"); return; }
 
         isRunning = true;
-        SetStatus($"Running — renewing every {intervalSeconds}s", "alert-success");
+        SetRenewalStatus($"Running — renewing every {intervalSeconds}s", "alert-success");
         cts = new CancellationTokenSource();
         _ = RenewLoop(cts.Token);
     }
@@ -188,7 +323,7 @@
     {
         cts?.Cancel();
         isRunning = false;
-        SetStatus($"Stopped after {renewalCount} renewal(s).", "alert-warning");
+        SetRenewalStatus($"Stopped after {renewalCount} renewal(s).", "alert-warning");
     }
 
     private async Task RenewLoop(CancellationToken token)
@@ -207,15 +342,11 @@
         try
         {
             var jwt = await LoginGdsApi.LoginAsync(new LoginApiModel
-            {
-                UserName = username,
-                Password = password
-            });
+            { UserName = username, Password = password });
 
             var httpClient = HttpClientFactory.CreateClient("GdsApi");
             httpClient.DefaultRequestHeaders.Authorization =
                 new AuthenticationHeaderValue("Bearer", jwt);
-
             var authedApi = new CertificateGroupsGdsApi(httpClient)
             {
                 BaseUrl = Configuration["GdsApi:BaseUrl"] ?? "https://gds-rest:8081"
@@ -241,22 +372,24 @@
             }
 
             renewalCount++;
-            SetStatus($"Running — renewal #{renewalCount} at {timestamp} ({succeeded} OK, {failed} failed). Next in {intervalSeconds}s.", "alert-success");
+            SetRenewalStatus(
+                $"Running — renewal #{renewalCount} at {timestamp} ({succeeded} OK, {failed} failed). Next in {intervalSeconds}s.",
+                "alert-success");
 
-            // Also refresh the applications list
             await LoadApplications();
         }
         catch (Exception ex)
         {
             AddLog($"[{timestamp}] ERR renewal #{renewalCount + 1}: {ex.Message}");
-            SetStatus($"Error: {ex.Message}", "alert-danger");
+            SetRenewalStatus($"Error: {ex.Message}", "alert-danger");
         }
 
         await InvokeAsync(StateHasChanged);
     }
 
     private void AddLog(string msg) { log.Add(msg); if (log.Count > 200) log.RemoveAt(0); }
-    private void SetStatus(string msg, string css) { statusMessage = msg; statusClass = css; }
+    private void SetRenewalStatus(string msg, string css)
+    { renewalStatusMessage = msg; renewalStatusClass = css; }
 
     public void Dispose() { cts?.Cancel(); cts?.Dispose(); }
 }
